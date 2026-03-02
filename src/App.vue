@@ -1,16 +1,30 @@
 <template>
   <div id="app">
-    <MainPage />
+    <MainPage 
+      v-if="!showAdmin" 
+      @open-admin="showAdmin = true"
+    />
+    <AdminPanel 
+      v-else 
+      @close="showAdmin = false"
+    />
   </div>
 </template>
 
 <script>
 import MainPage from './components/MainPage.vue'
+import AdminPanel from './components/AdminPanel.vue'
 
 export default {
   name: 'App',
   components: {
-    MainPage
+    MainPage,
+    AdminPanel
+  },
+  data() {
+    return {
+      showAdmin: false
+    }
   }
 }
 </script>

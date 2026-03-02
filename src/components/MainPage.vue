@@ -1,11 +1,14 @@
 <template>
   <div class="app">
     <header class="header">
-      <h1>
-        <span class="material-icons">school</span>
-        Журнал успеваемости
-      </h1>
+      <h1>📚 Журнал успеваемости</h1>
     </header>
+
+    <div class="admin-section">
+      <button class="admin-btn" @click="$emit('open-admin')">
+        ⚙️ Админ панель
+      </button>
+    </div>
 
     <div class="filters">
       <div class="filter-item">
@@ -38,6 +41,17 @@
         </select>
       </div>
 
+      <div class="filter-item" v-if="selectedGroup && selectedSubject">
+        <label for="student-filter">Фильтр по студенту:</label>
+        <input 
+          type="text" 
+          id="student-filter"
+          v-model="studentFilter" 
+          placeholder="Введите имя студента..."
+          class="filter-input"
+        >
+      </div>
+
       <button 
         class="refresh-btn" 
         @click="loadData" 
@@ -52,7 +66,7 @@
       <p>Загрузка данных...</p>
     </div>
 
-    <div v-else-if="tableData.length > 0" class="table-container">
+    <div v-else-if="filteredTableData.length > 0" class="table-container">
       <table>
         <thead>
           <tr>
@@ -62,7 +76,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in tableData" :key="index">
+          <tr v-for="(row, index) in filteredTableData" :key="index">
             <td class="student-name">{{ row.student_name }}</td>
             <td :class="['grade', getGradeClass(row)]">
               {{ getGradeText(row) }}
@@ -73,14 +87,20 @@
       </table>
     </div>
 
+    <div v-else-if="selectedGroup && selectedSubject && tableData.length > 0" class="empty-state">
+      <span class="empty-icon">🔍</span>
+      <h3>Ничего не найдено</h3>
+      <p>Попробуйте изменить фильтр поиска</p>
+    </div>
+
     <div v-else-if="selectedGroup && selectedSubject" class="empty-state">
-      <span class="material-icons empty-icon">info</span>
+      <span class="empty-icon">📊</span>
       <h3>Нет данных для отображения</h3>
       <p>Для выбранной группы и предмета пока нет оценок</p>
     </div>
 
     <div v-else class="welcome">
-      <span class="material-icons welcome-icon">arrow_upward</span>
+      <span class="welcome-icon">⬆️</span>
       <h3>Выберите группу и предмет</h3>
       <p>Используйте фильтры выше для просмотра журнала</p>
     </div>
@@ -97,7 +117,18 @@ export default {
       selectedGroup: '',
       selectedSubject: '',
       tableData: [],
+      studentFilter: '',
       loading: false
+    }
+  },
+  computed: {
+    filteredTableData() {
+      if (!this.studentFilter) return this.tableData
+      
+      const filterLower = this.studentFilter.toLowerCase()
+      return this.tableData.filter(row => 
+        row.student_name.toLowerCase().includes(filterLower)
+      )
     }
   },
   mounted() {
@@ -142,6 +173,7 @@ export default {
 
       this.loading = true
       this.tableData = []
+      this.studentFilter = '' // Сбрасываем фильтр при загрузке новых данных
       
       try {
         localStorage.setItem('selectedGroup', this.selectedGroup)
@@ -182,7 +214,7 @@ export default {
     getGradeText(row) {
       if (!row.attendance) return '❌ Отсутствовал'
       if (row.grade) return `Оценка: ${row.grade}`
-      return '✓ Присутствовал'
+      return '✅ Присутствовал'
     },
 
     getGradeClass(row) {
@@ -204,7 +236,6 @@ export default {
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .header {
@@ -219,9 +250,32 @@ export default {
 .header h1 {
   margin: 0;
   font-size: 28px;
+}
+
+.admin-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 20px;
+}
+
+.admin-btn {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.admin-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
 }
 
 .filters {
@@ -232,10 +286,13 @@ export default {
   padding: 20px;
   border-radius: 15px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+  align-items: flex-end;
+  flex-wrap: wrap;
 }
 
 .filter-item {
   flex: 1;
+  min-width: 200px;
 }
 
 .filter-item label {
@@ -246,7 +303,8 @@ export default {
   font-size: 14px;
 }
 
-.filter-item select {
+.filter-item select,
+.filter-item input {
   width: 100%;
   padding: 12px;
   border: 2px solid #e0e0e0;
@@ -255,20 +313,28 @@ export default {
   transition: all 0.3s;
 }
 
-.filter-item select:focus {
+.filter-item select:focus,
+.filter-item input:focus {
   outline: none;
   border-color: #667eea;
 }
 
+.filter-input {
+  width: 100%;
+  padding: 12px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
 .refresh-btn {
-  padding: 0 20px;
+  padding: 12px 24px;
   background: #667eea;
   color: white;
   border: none;
   border-radius: 8px;
   font-size: 14px;
   cursor: pointer;
-  align-self: flex-end;
   height: 42px;
   transition: background 0.3s;
 }
@@ -359,9 +425,10 @@ tr:hover {
 }
 
 .empty-icon, .welcome-icon {
-  font-size: 60px !important;
+  font-size: 60px;
   color: #dee2e6;
   margin-bottom: 20px;
+  display: block;
 }
 
 .welcome h3, .empty-state h3 {
@@ -372,6 +439,7 @@ tr:hover {
 @media (max-width: 768px) {
   .filters {
     flex-direction: column;
+    align-items: stretch;
   }
   
   .header h1 {
@@ -384,6 +452,10 @@ tr:hover {
   
   td, th {
     padding: 10px;
+  }
+  
+  .filter-item {
+    min-width: 100%;
   }
 }
 </style>
