@@ -1,108 +1,216 @@
 <template>
   <div class="app">
     <header class="header">
-      <h1>📚 Журнал успеваемости</h1>
+      <div class="header-content">
+        <h1>📚 Журнал успеваемости</h1>
+        <button class="admin-btn" @click="$emit('open-admin')">
+          ⚙️ Админ панель
+        </button>
+      </div>
     </header>
 
-    <div class="admin-section">
-      <button class="admin-btn" @click="$emit('open-admin')">
-        ⚙️ Админ панель
-      </button>
-    </div>
-
-    <div class="filters">
-      <div class="filter-item">
-        <label for="group">Группа:</label>
-        <select 
-          id="group" 
-          v-model="selectedGroup" 
-          @change="loadData"
-          :disabled="loading"
-        >
-          <option value="">Выберите группу</option>
-          <option v-for="group in groups" :key="group.group_name" :value="group.group_name">
-            {{ group.group_name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="filter-item">
-        <label for="subject">Предмет:</label>
-        <select 
-          id="subject" 
-          v-model="selectedSubject" 
-          @change="loadData"
-          :disabled="loading"
-        >
-          <option value="">Выберите предмет</option>
-          <option v-for="subject in subjects" :key="subject.id" :value="subject.id">
-            {{ subject.name }}
-          </option>
-        </select>
-      </div>
-
-      <div class="filter-item" v-if="selectedGroup && selectedSubject">
-        <label for="student-filter">Фильтр по студенту:</label>
-        <input 
-          type="text" 
-          id="student-filter"
-          v-model="studentFilter" 
-          placeholder="Введите имя студента..."
-          class="filter-input"
-        >
-      </div>
-
+    <!-- Вкладки: Журнал и Средняя успеваемость -->
+    <div class="tabs">
       <button 
-        class="refresh-btn" 
-        @click="loadData" 
-        :disabled="loading || !selectedGroup || !selectedSubject"
+        class="tab-btn" 
+        :class="{ active: currentTab === 'journal' }"
+        @click="currentTab = 'journal'"
       >
-        🔄 Обновить
+        📖 Журнал оценок
+      </button>
+      <button 
+        class="tab-btn" 
+        :class="{ active: currentTab === 'average' }"
+        @click="currentTab = 'average'; loadAverageData()"
+      >
+        📊 Средняя успеваемость
       </button>
     </div>
 
-    <div v-if="loading" class="loading">
-      <div class="spinner"></div>
-      <p>Загрузка данных...</p>
+    <!-- Вкладка: Журнал оценок -->
+    <div v-if="currentTab === 'journal'">
+      <div class="filters">
+        <div class="filter-item">
+          <label for="group">Группа:</label>
+          <select 
+            id="group" 
+            v-model="selectedGroup" 
+            @change="loadData"
+            :disabled="loading"
+          >
+            <option value="">Выберите группу</option>
+            <option v-for="group in groups" :key="group.group_name" :value="group.group_name">
+              {{ group.group_name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-item">
+          <label for="subject">Предмет:</label>
+          <select 
+            id="subject" 
+            v-model="selectedSubject" 
+            @change="loadData"
+            :disabled="loading"
+          >
+            <option value="">Выберите предмет</option>
+            <option v-for="subject in subjects" :key="subject.id" :value="subject.id">
+              {{ subject.name }}
+            </option>
+          </select>
+        </div>
+
+        <div class="filter-item" v-if="selectedGroup && selectedSubject">
+          <label for="student-filter">Фильтр по студенту:</label>
+          <input 
+            type="text" 
+            id="student-filter"
+            v-model="studentFilter" 
+            placeholder="Введите имя студента..."
+            class="filter-input"
+          >
+        </div>
+
+        <button 
+          class="refresh-btn" 
+          @click="loadData" 
+          :disabled="loading || !selectedGroup || !selectedSubject"
+        >
+          🔄 Обновить
+        </button>
+      </div>
+
+      <div v-if="loading" class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка данных...</p>
+      </div>
+
+      <div v-else-if="filteredTableData.length > 0" class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Студент</th>
+              <th>Отметка</th>
+              <th>Дата</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in filteredTableData" :key="index">
+              <td class="student-name">{{ row.student_name }}</td>
+              <td :class="['grade', getGradeClass(row)]">
+                {{ getGradeText(row) }}
+              </td>
+              <td>{{ formatDate(row.date) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else-if="selectedGroup && selectedSubject && tableData.length > 0" class="empty-state">
+        <span class="empty-icon">🔍</span>
+        <h3>Ничего не найдено</h3>
+        <p>Попробуйте изменить фильтр поиска</p>
+      </div>
+
+      <div v-else-if="selectedGroup && selectedSubject" class="empty-state">
+        <span class="empty-icon">📊</span>
+        <h3>Нет данных для отображения</h3>
+        <p>Для выбранной группы и предмета пока нет оценок</p>
+      </div>
+
+      <div v-else class="welcome">
+        <span class="welcome-icon">⬆️</span>
+        <h3>Выберите группу и предмет</h3>
+        <p>Используйте фильтры выше для просмотра журнала</p>
+      </div>
     </div>
 
-    <div v-else-if="filteredTableData.length > 0" class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>Студент</th>
-            <th>Отметка</th>
-            <th>Дата</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="(row, index) in filteredTableData" :key="index">
-            <td class="student-name">{{ row.student_name }}</td>
-            <td :class="['grade', getGradeClass(row)]">
-              {{ getGradeText(row) }}
-            </td>
-            <td>{{ formatDate(row.date) }}</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <!-- Вкладка: Средняя успеваемость -->
+    <div v-if="currentTab === 'average'" class="average-tab">
+      <div class="filters">
+        <div class="filter-item">
+          <label for="avg-group">Группа:</label>
+          <select 
+            id="avg-group" 
+            v-model="avgSelectedGroup" 
+            @change="loadAverageData"
+          >
+            <option value="">Все группы</option>
+            <option v-for="group in groups" :key="group.group_name" :value="group.group_name">
+              {{ group.group_name }}
+            </option>
+          </select>
+        </div>
 
-    <div v-else-if="selectedGroup && selectedSubject && tableData.length > 0" class="empty-state">
-      <span class="empty-icon">🔍</span>
-      <h3>Ничего не найдено</h3>
-      <p>Попробуйте изменить фильтр поиска</p>
-    </div>
+        <div class="filter-item">
+          <label for="avg-subject">Предмет:</label>
+          <select 
+            id="avg-subject" 
+            v-model="avgSelectedSubject" 
+            @change="loadAverageData"
+          >
+            <option value="">Все предметы</option>
+            <option v-for="subject in subjects" :key="subject.id" :value="subject.id">
+              {{ subject.name }}
+            </option>
+          </select>
+        </div>
 
-    <div v-else-if="selectedGroup && selectedSubject" class="empty-state">
-      <span class="empty-icon">📊</span>
-      <h3>Нет данных для отображения</h3>
-      <p>Для выбранной группы и предмета пока нет оценок</p>
-    </div>
+        <div class="filter-item">
+          <label for="student-avg-filter">Фильтр по студенту:</label>
+          <input 
+            type="text" 
+            id="student-avg-filter"
+            v-model="avgStudentFilter" 
+            placeholder="Введите имя студента..."
+            class="filter-input"
+          >
+        </div>
 
-    <div v-else class="welcome">
-      <span class="welcome-icon">⬆️</span>
-      <h3>Выберите группу и предмет</h3>
-      <p>Используйте фильтры выше для просмотра журнала</p>
+        <button class="refresh-btn" @click="loadAverageData">
+          🔄 Обновить
+        </button>
+      </div>
+
+      <div v-if="avgLoading" class="loading">
+        <div class="spinner"></div>
+        <p>Загрузка данных...</p>
+      </div>
+
+      <div v-else-if="filteredAverageData.length > 0" class="table-container">
+        <table class="average-table">
+          <thead>
+            <tr>
+              <th>Студент</th>
+              <th>Группа</th>
+              <th>Предмет</th>
+              <th>Средний балл</th>
+              <th>Всего оценок</th>
+              <th>Всего пропусков</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(item, index) in filteredAverageData" :key="index">
+              <td class="student-name">{{ item.student_name }}</td>
+              <td>{{ item.group_name }}</td>
+              <td>{{ item.subject_name }}</td>
+              <td :class="['average-grade', getAverageGradeClass(item.average)]">
+                {{ item.average.toFixed(2) }}
+              </td>
+              <td>{{ item.grades_count }}</td>
+              <td :class="['absences-count', getAbsencesClass(item.absences_count)]">
+                {{ item.absences_count }}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="empty-state">
+        <span class="empty-icon">📊</span>
+        <h3>Нет данных для отображения</h3>
+        <p>В системе пока нет оценок для расчета средней успеваемости</p>
+      </div>
     </div>
   </div>
 </template>
@@ -112,13 +220,24 @@ export default {
   name: 'MainPage',
   data() {
     return {
+      // Общие данные
       groups: [],
       subjects: [],
+      currentTab: 'journal',
+      
+      // Данные для журнала
       selectedGroup: '',
       selectedSubject: '',
       tableData: [],
       studentFilter: '',
-      loading: false
+      loading: false,
+      
+      // Данные для средней успеваемости
+      avgSelectedGroup: '',
+      avgSelectedSubject: '',
+      avgStudentFilter: '',
+      averageData: [],
+      avgLoading: false
     }
   },
   computed: {
@@ -129,6 +248,31 @@ export default {
       return this.tableData.filter(row => 
         row.student_name.toLowerCase().includes(filterLower)
       )
+    },
+    
+    filteredAverageData() {
+      let filtered = this.averageData
+      
+      // Фильтр по группе
+      if (this.avgSelectedGroup) {
+        filtered = filtered.filter(item => item.group_name === this.avgSelectedGroup)
+      }
+      
+      // Фильтр по предмету
+      if (this.avgSelectedSubject) {
+        filtered = filtered.filter(item => item.subject_id === parseInt(this.avgSelectedSubject))
+      }
+      
+      // Фильтр по имени студента
+      if (this.avgStudentFilter) {
+        const filterLower = this.avgStudentFilter.toLowerCase()
+        filtered = filtered.filter(item => 
+          item.student_name.toLowerCase().includes(filterLower)
+        )
+      }
+      
+      // Сортировка по среднему баллу (убывание)
+      return filtered.sort((a, b) => b.average - a.average)
     }
   },
   mounted() {
@@ -173,7 +317,7 @@ export default {
 
       this.loading = true
       this.tableData = []
-      this.studentFilter = '' // Сбрасываем фильтр при загрузке новых данных
+      this.studentFilter = ''
       
       try {
         localStorage.setItem('selectedGroup', this.selectedGroup)
@@ -193,6 +337,71 @@ export default {
         alert('Ошибка при загрузке данных: ' + error.message)
       } finally {
         this.loading = false
+      }
+    },
+
+    async loadAverageData() {
+      this.avgLoading = true
+      this.averageData = []
+      
+      try {
+        // Получаем всех студентов
+        const studentsResponse = await fetch('/api/students')
+        const students = await studentsResponse.json()
+        
+        // Получаем все предметы
+        const subjectsResponse = await fetch('/api/subjects')
+        const subjects = await subjectsResponse.json()
+        
+        // Для каждого студента и предмета считаем средний балл и пропуски
+        const averages = []
+        
+        for (const student of students) {
+          for (const subject of subjects) {
+            // Получаем все оценки студента по предмету
+            const gradesResponse = await fetch(
+              `/api/attendance?group=${encodeURIComponent(student.group_name)}&subjectId=${subject.id}`
+            )
+            const gradesData = await gradesResponse.json()
+            
+            // Фильтруем оценки только для этого студента
+            const studentGrades = gradesData.grades.filter(g => g.student_id === student.id)
+            
+            // Оценки с баллами (для среднего балла)
+            const graded = studentGrades.filter(g => g.grade)
+            
+            // Пропуски (attendance = 0)
+            const absences = studentGrades.filter(g => !g.attendance)
+            
+            if (studentGrades.length > 0) {
+              // Считаем средний балл
+              let average = 0
+              if (graded.length > 0) {
+                const sum = graded.reduce((acc, g) => acc + parseInt(g.grade), 0)
+                average = sum / graded.length
+              }
+              
+              averages.push({
+                student_id: student.id,
+                student_name: student.name,
+                group_name: student.group_name,
+                subject_id: subject.id,
+                subject_name: subject.name,
+                average: average,
+                grades_count: graded.length,
+                absences_count: absences.length
+              })
+            }
+          }
+        }
+        
+        this.averageData = averages
+        
+      } catch (error) {
+        console.error('Ошибка загрузки данных успеваемости:', error)
+        alert('Ошибка при загрузке данных успеваемости')
+      } finally {
+        this.avgLoading = false
       }
     },
 
@@ -226,6 +435,20 @@ export default {
         if (grade <= 2) return 'bad'
       }
       return 'present'
+    },
+
+    getAverageGradeClass(average) {
+      if (average >= 4.5) return 'excellent'
+      if (average >= 4) return 'good'
+      if (average >= 3) return 'satisfactory'
+      return 'bad'
+    },
+
+    getAbsencesClass(absences) {
+      if (absences === 0) return 'excellent'
+      if (absences <= 2) return 'good'
+      if (absences <= 5) return 'satisfactory'
+      return 'bad'
     }
   }
 }
@@ -247,22 +470,22 @@ export default {
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
 }
 
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .header h1 {
   margin: 0;
   font-size: 28px;
 }
 
-.admin-section {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 20px;
-}
-
 .admin-btn {
-  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  background: rgba(255, 255, 255, 0.2);
   color: white;
-  border: none;
-  padding: 12px 24px;
+  border: 2px solid white;
+  padding: 10px 20px;
   border-radius: 8px;
   cursor: pointer;
   display: flex;
@@ -270,12 +493,46 @@ export default {
   gap: 8px;
   font-size: 14px;
   font-weight: 600;
-  transition: transform 0.3s, box-shadow 0.3s;
+  transition: all 0.3s;
 }
 
 .admin-btn:hover {
+  background: white;
+  color: #667eea;
   transform: translateY(-2px);
-  box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+  box-shadow: 0 5px 15px rgba(255, 255, 255, 0.3);
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  background: white;
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.tab-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #666;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.tab-btn:hover {
+  background: #f0f0f0;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
 }
 
 .filters {
@@ -375,11 +632,17 @@ export default {
   border-radius: 15px;
   box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
   overflow: hidden;
+  overflow-x: auto;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
+  min-width: 800px;
+}
+
+.average-table {
+  min-width: 1000px;
 }
 
 th {
@@ -416,6 +679,24 @@ tr:hover {
 .grade.satisfactory { color: #fd7e14; font-weight: 600; }
 .grade.bad { color: #dc3545; font-weight: 600; }
 
+.average-grade {
+  font-weight: 600;
+}
+
+.average-grade.excellent { color: #28a745; font-weight: 700; }
+.average-grade.good { color: #5cb85c; font-weight: 600; }
+.average-grade.satisfactory { color: #fd7e14; font-weight: 600; }
+.average-grade.bad { color: #dc3545; font-weight: 600; }
+
+.absences-count {
+  font-weight: 600;
+}
+
+.absences-count.excellent { color: #28a745; }
+.absences-count.good { color: #5cb85c; }
+.absences-count.satisfactory { color: #fd7e14; }
+.absences-count.bad { color: #dc3545; }
+
 .empty-state, .welcome {
   text-align: center;
   padding: 80px 20px;
@@ -436,14 +717,32 @@ tr:hover {
   color: #495057;
 }
 
+.average-tab {
+  margin-top: 20px;
+}
+
 @media (max-width: 768px) {
   .filters {
     flex-direction: column;
     align-items: stretch;
   }
   
+  .header-content {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+  
   .header h1 {
     font-size: 22px;
+  }
+  
+  .tabs {
+    flex-direction: column;
+  }
+  
+  .filter-item {
+    min-width: 100%;
   }
   
   table {
@@ -452,10 +751,6 @@ tr:hover {
   
   td, th {
     padding: 10px;
-  }
-  
-  .filter-item {
-    min-width: 100%;
   }
 }
 </style>
